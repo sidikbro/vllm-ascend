@@ -5,62 +5,29 @@
 
 from __future__ import annotations
 
-import time
 import threading
-from collections.abc import Iterable
 from typing import Dict, List, Optional, Tuple, Deque, Union
-from sortedcontainers import SortedDict
 
 from vllm_ascend.core.ewsjf_scheduler.waiting_queue import WaitingQueue, QueueInfo
-# EWSJF MODIFICATION: Import the parent Scheduler class to inherit from it.
-from vllm.v1.core.sched.scheduler import Scheduler
-from vllm.config import VllmConfig
-from vllm.logger import init_logger
-from vllm.multimodal import MULTIMODAL_REGISTRY, MultiModalRegistry
-from vllm.v1.core.sched.output import SchedulerOutput, NewRequestData
-from vllm.v1.engine import EngineCoreEventType
-from vllm.v1.kv_cache_interface import KVCacheConfig
-from vllm.v1.metrics.stats import SchedulerStats
-#from vllm.distributed.kv_transfer.kv_connector.v1.metrics import KVConnectorStats
-from vllm.v1.request import Request, RequestStatus
-from vllm.v1.spec_decode.metrics import SpecDecodingStats
-from vllm.v1.structured_output import StructuredOutputManager
-from vllm.distributed.kv_events import KVEventBatch
 from vllm_ascend.core.ewsjf_scheduler.scoring import SimpleScoreCalculator
-import itertools
+from vllm_ascend.core.scheduler import AscendScheduler
+
 import time
-from collections import defaultdict, deque
-from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any
+from collections import deque
+
 
 from vllm.config import VllmConfig
 from vllm.distributed.kv_events import EventPublisherFactory, KVEventBatch
-from vllm.distributed.kv_transfer.kv_connector.factory import KVConnectorFactory
-from vllm.distributed.kv_transfer.kv_connector.v1 import (
-    KVConnectorBase_V1,
-    KVConnectorRole,
-)
-#from vllm.distributed.kv_transfer.kv_connector.v1.metrics import KVConnectorStats
 from vllm.logger import init_logger
 from vllm.multimodal import MULTIMODAL_REGISTRY, MultiModalRegistry
-from vllm.v1.core.encoder_cache_manager import (
-    EncoderCacheManager,
-    compute_encoder_budget,
-)
 from vllm.v1.core.kv_cache_manager import KVCacheBlocks, KVCacheManager
-from vllm.v1.core.sched.interface import SchedulerInterface
 from vllm.v1.core.sched.output import CachedRequestData, NewRequestData, SchedulerOutput
 from vllm.v1.core.sched.request_queue import SchedulingPolicy, create_request_queue
-from vllm.v1.core.sched.utils import check_stop, remove_all
 from vllm.v1.engine import EngineCoreEventType, EngineCoreOutput, EngineCoreOutputs
 from vllm.v1.kv_cache_interface import KVCacheConfig
-from vllm.v1.metrics.stats import SchedulerStats
-from vllm.v1.outputs import DraftTokenIds, KVConnectorOutput, ModelRunnerOutput
 from vllm.v1.request import Request, RequestStatus
-from vllm.v1.spec_decode.metrics import SpecDecodingStats
 from vllm.v1.structured_output import StructuredOutputManager
 
-from vllm_ascend.core.scheduler import AscendScheduler
 
 logger = init_logger(__name__)
 
@@ -616,6 +583,8 @@ class EWSJFAscendScheduler(AscendScheduler):
         return token_budget
 
     def schedule(self) -> SchedulerOutput:
+        print(f'-----------------------------------num requests: {self.get_request_counts()}--------------------------------')
+        print(f'------------------------------------queues: {sum(queue.size for queue in self.queues.values())}-----------------------------')
         if self.scheduler_config.chunked_prefill_enabled:
             return self.super_schedule()
         scheduled_new_reqs: list[Request] = []
@@ -1053,6 +1022,7 @@ class EWSJFAscendScheduler(AscendScheduler):
             self.requests[req_id].num_computed_tokens += num_scheduled_token
 
         self.finished_req_ids = set()  # type: ignore
+        print(scheduler_output)
         return scheduler_output
 
     def _update_scores_loop(self):
