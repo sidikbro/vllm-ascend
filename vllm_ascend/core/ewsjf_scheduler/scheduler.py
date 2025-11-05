@@ -79,9 +79,9 @@ class EWSJFAscendScheduler(AscendScheduler):
         if self.external_parameters and 'step_size' in self.external_parameters:
             self.step_size: int = self.external_parameters['step_size']
         else:
-            self.step_size: int = 200  # Default queue size range
+            self.step_size: int = 64  # Default queue size range
 
-        self.empty_queue_threshold: int = 20  # Cycles before removing empty queue
+        self.empty_queue_threshold: int = 30  # Cycles before removing empty queue
         self.current_time = None  # Current timestamp for score calculations
         if self.external_parameters and 'score_calculator' in self.external_parameters:
             self.score_calculator = self.external_parameters['score_calculator']
