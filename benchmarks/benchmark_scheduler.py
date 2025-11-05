@@ -11,7 +11,10 @@ from vllm.engine.arg_utils import AsyncEngineArgs
 # from vllm_ascend.core.ewsjf_scheduler.scheduler_cls import SCHEDULER_CLS
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "2, 3"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "2, 3"
+
+os.environ["VLLM_USE_MODELSCOPE"] = "False"
+os.environ["VLLM_WORKER_MULTIPROC_METHOD"] = "spawn"
 
 
 async def generate_async(engine, request_id, prompt, sampling_params):
