@@ -583,15 +583,12 @@ class EWSJFAscendScheduler(AscendScheduler):
         return token_budget
 
     def schedule(self) -> SchedulerOutput:
-        print(f'-----------------------------------num requests: {self.get_request_counts()}--------------------------------')
-        print(f'------------------------------------queues: {len(self.waiting)}-----------------------------')
         if self.scheduler_config.chunked_prefill_enabled:
             return self.super_schedule()
         scheduled_new_reqs: list[Request] = []
         scheduled_resumed_reqs: list[Request] = []
         scheduled_running_reqs: list[Request] = []
         preempted_reqs: list[Request] = []
-        print('1')
         req_to_new_blocks: dict[str, KVCacheBlocks] = {}
         num_scheduled_tokens: dict[str, int] = {}
         token_budget = self.max_num_scheduled_tokens
@@ -608,7 +605,6 @@ class EWSJFAscendScheduler(AscendScheduler):
         self.current_time = time.time()
 
         self.update_event.set()
-        print('2')
         # Record scheduled LoRA requests.
         scheduled_loras: set[int] = set()
 
@@ -617,7 +613,6 @@ class EWSJFAscendScheduler(AscendScheduler):
         skipped_waiting_requests: deque[Request] = deque()
 
         if self.phase == "prefill":
-            print('3')
             remaining_running_reqs = []
             for request in self.running:
                 # move request has finished prefill to finished_prefill_reqs
@@ -634,19 +629,15 @@ class EWSJFAscendScheduler(AscendScheduler):
         timeout_occurred = not self.finish_update_event.wait(timeout=0.1)  # 100ms timeout
         if not timeout_occurred:
             self.finish_update_event.clear()
-            print('4')
         else:
             # Use previous best_queue if update didn't complete
             logger.warning("Score update timed out, using previous best queue")
 
-        print(f'################# self.waiting.best_queue: {self.waiting.best_queue}, self.waiting.best_queue.is_empty: {self.waiting.best_queue.is_empty}###############')
         if self.waiting.best_queue and not self.waiting.best_queue.is_empty:
-            print('5')
-            print("###########enter if self.waiting.best_queue and not self.waiting.best_queue.is_empty############")
+
             with self.lock:
                 # Schedule prefill requests first.
-                while self.waiting.best_queue.is_empty and token_budget > 0:
-                    print('6')
+                while not self.waiting.best_queue.is_empty and token_budget > 0:
                     if len(self.running) == (self.decode_max_num_running_reqs
                                              if self.phase == "decode" else
                                              self.max_num_running_reqs):
@@ -654,7 +645,6 @@ class EWSJFAscendScheduler(AscendScheduler):
                         break
 
                     request = self.waiting.peek_request()
-                    print(f'################ request: {request.request_id}###############')
                     def skip_cur_request():
                         self.waiting.pop_request()
                         skipped_waiting_requests.appendleft(request)
@@ -779,7 +769,6 @@ class EWSJFAscendScheduler(AscendScheduler):
                             new_computed_blocks + new_blocks,
                             num_external_computed_tokens,
                         )
-                    print('7')
                     self.waiting.pop_request()
                     if load_kv_async:
                         # If loading async, allocate memory and put request
@@ -830,7 +819,6 @@ class EWSJFAscendScheduler(AscendScheduler):
                     self.waiting.prepend_requests(skipped_waiting_requests)
 
         if self.phase == "decode":
-            print('8')
             while len(
                     self.running
             ) < self.decode_max_num_running_reqs and self.finished_prefill_reqs:
@@ -842,7 +830,6 @@ class EWSJFAscendScheduler(AscendScheduler):
         if len(self.scheduled_req_ids) == 0:
             req_index = 0
             while req_index < len(self.running) and token_budget > 0:
-                print('9')
                 request = self.running[req_index]
                 if request.request_id in self.scheduled_req_ids:
                     # This request has already been scheduled.
@@ -1030,7 +1017,6 @@ class EWSJFAscendScheduler(AscendScheduler):
             self.requests[req_id].num_computed_tokens += num_scheduled_token
 
         self.finished_req_ids = set()  # type: ignore
-        print(scheduler_output)
         return scheduler_output
 
     def _update_scores_loop(self):
@@ -1054,7 +1040,6 @@ class EWSJFAscendScheduler(AscendScheduler):
         This method calculates scores for each non-empty queue, handles empty
         queue removal, and updates the best_queue pointer to the highest-scoring queue.
         """
-        print("&&&&&&&&&&&&&&&&&&&&&&& start update score &&&&&&&&&&&&&&&&&&&&&&&&&")
         new_best_queue = None
         new_best_score = -1.0
         queues_to_remove = []
@@ -1096,7 +1081,6 @@ class EWSJFAscendScheduler(AscendScheduler):
 
         # Update the best queue pointer
         self.waiting.best_queue = new_best_queue
-        print(f'&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& self.best_queue: {self.waiting.best_queue} &&&&&&&&&&&&&&&&&&&&&&&&&&')
         # Remove queues that have been empty too long
         with self.lock:
             for queue in queues_to_remove:
