@@ -79,7 +79,7 @@ class EWSJFAscendScheduler(AscendScheduler):
         if self.external_parameters and 'step_size' in self.external_parameters:
             self.step_size: int = self.external_parameters['step_size']
         else:
-            self.step_size: int = 64  # Default queue size range
+            self.step_size: int = 200  # Default queue size range
 
         self.empty_queue_threshold: int = 30  # Cycles before removing empty queue
         self.current_time = None  # Current timestamp for score calculations
@@ -369,11 +369,11 @@ class EWSJFAscendScheduler(AscendScheduler):
                                          req_to_new_blocks, scheduled_encoder_inputs, scheduled_loras,
                                          scheduled_new_reqs, scheduled_resumed_reqs, scheduled_timestamp,
                                          skipped_waiting_requests, token_budget):
-        if not self.waiting.best_queue or self.waiting.best_queue.is_empty:
+        if not self.waiting.has_best_queue or self.waiting.is_empty_best_queue:
             return token_budget
 
         with self.lock:
-            while not self.waiting.best_queue.is_empty and token_budget > 0:
+            while not self.waiting.is_empty_best_queue and token_budget > 0:
                 if len(self.running) == self.max_num_running_reqs:
                     break
 
@@ -622,7 +622,7 @@ class EWSJFAscendScheduler(AscendScheduler):
                     remaining_running_reqs.append(request)
             self.running = remaining_running_reqs
             # all request prefilled, change phase to decode
-            if not self.waiting.best_queue and not self.running:
+            if not self.waiting.has_best_queue and not self.running:
                 self.phase = "decode"
 
         # Wait for score update to complete
@@ -633,11 +633,11 @@ class EWSJFAscendScheduler(AscendScheduler):
             # Use previous best_queue if update didn't complete
             logger.warning("Score update timed out, using previous best queue")
 
-        if self.waiting.best_queue and not self.waiting.best_queue.is_empty:
+        if self.waiting.has_best_queue and not self.waiting.is_empty_best_queue:
 
             with self.lock:
                 # Schedule prefill requests first.
-                while not self.waiting.best_queue.is_empty and token_budget > 0:
+                while not self.waiting.is_empty_best_queue and token_budget > 0:
                     if len(self.running) == (self.decode_max_num_running_reqs
                                              if self.phase == "decode" else
                                              self.max_num_running_reqs):
@@ -1046,12 +1046,12 @@ class EWSJFAscendScheduler(AscendScheduler):
 
         # Iterate through all queues and update their scores
         with self.lock:
-            for queue in self.waiting.queues.values():
+            for queue in self.waiting.get_all_queues():
                 if queue.is_empty:
                     if queue.removable:
                         queue.increment_empty_count()
                         # Mark for removal if empty too long
-                        if queue.empty_count >= self.empty_queue_threshold and len(self.waiting.queues) > 1:
+                        if queue.empty_count >= self.empty_queue_threshold and self.waiting.queues_count > 1:
                             queues_to_remove.append(queue)
                     else:
                         # Non-removable empty queues get score 0
@@ -1080,7 +1080,7 @@ class EWSJFAscendScheduler(AscendScheduler):
                     new_best_queue = queue
 
         # Update the best queue pointer
-        self.waiting.best_queue = new_best_queue
+        self.waiting.update_best_queue(new_best_queue)
         # Remove queues that have been empty too long
         with self.lock:
             for queue in queues_to_remove:
@@ -1093,14 +1093,9 @@ class EWSJFAscendScheduler(AscendScheduler):
         Args:
             queue_to_remove (QueueInfo): The queue to be removed
         """
-        if queue_to_remove.low_boundary in self.waiting.queues:
-            # Get any remaining requests before removal
-            remaining_requests = queue_to_remove.get_all_requests()
+        remaining_requests = self.waiting.delete_queue(queue_to_remove)
 
-            # Remove from the sorted dictionary
-            del self.waiting.queues[queue_to_remove.low_boundary]
-
-            # Redistribute remaining requests to appropriate queues
+        if remaining_requests:
             for req in remaining_requests:
                 self.add_request(req)
 
