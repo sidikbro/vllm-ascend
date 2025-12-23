@@ -4,7 +4,6 @@ import os
 import time
 import asyncio
 import argparse
-import pandas as pd
 from datasets import load_dataset
 from vllm import SamplingParams
 from vllm.engine.async_llm_engine import AsyncLLMEngine
