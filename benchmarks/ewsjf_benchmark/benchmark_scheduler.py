@@ -70,8 +70,8 @@ async def main(sampling_params, prompts, rates, model_name, tensor_parallel_size
     elif mode == "ewsjf":
         await main_ewsjf(sampling_params, prompts, rates, model_name, tensor_parallel_size)
     else:
-        await main_fcfs(sampling_params, prompts, rates, model_name, tensor_parallel_size)
         await main_ewsjf(sampling_params, prompts, rates, model_name, tensor_parallel_size)
+        await main_fcfs(sampling_params, prompts, rates, model_name, tensor_parallel_size)
 
 
 async def run_engine(engine_args, prompts, sampling_params, rate):
