@@ -54,7 +54,7 @@ class AscendSchedulerConfig(SchedulerConfig):
         else:
             scheduler_config["scheduler_cls"] = (
                 "vllm_ascend.core.scheduler.AscendScheduler")
-        print(f'--------------------------------------scheduler: {scheduler_config["scheduler_cls"]}----------------------')
+        print(f'-------------------------------------scheduler: {scheduler_config["scheduler_cls"]}----------------------')
 
         scheduler_config["enable_pd_transfer"] = False
         scheduler_config["decode_max_num_seqs"] = 0
